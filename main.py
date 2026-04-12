@@ -51,7 +51,8 @@ class NarakaRecruitPlugin(Star):
             pass
         return False
 
-    async def _handle_recruit(self, event: AstrMessageEvent, mode: str):
+
+async def _handle_recruit(self, event: AstrMessageEvent, mode: str):
         sender_id = event.get_sender_id()
         sender_name = event.get_sender_name()
 
@@ -60,10 +61,12 @@ class NarakaRecruitPlugin(Star):
         if limited:
             return event.plain_result(f"❌ {msg}")
 
-        # 2. 构造并返回消息链
-        # 这是 AstrBot 的标准做法，不需要手动调用底层 API
+        # 2. 构造消息
+        # 直接使用 CQ 码 [CQ:at,qq=all]，这是 OneBot 协议中最通用的艾特全体方式
+        # 注意：CQ 码前后最好不要有紧贴的文字，否则有时会被识别成普通文本
         text_content = (
-            f"\n🔥【永劫无间 {mode} 招募】🔥\n"
+            f"[CQ:at,qq=all]\n"
+            f"🔥【永劫无间 {mode} 招募】🔥\n"
             f"发起人：{sender_name} ({sender_id})\n"
             f"模式：{mode}\n\n"
             f"大家快上车呀！感兴趣的直接联系发起人！"
@@ -72,12 +75,8 @@ class NarakaRecruitPlugin(Star):
         # 记录使用次数
         self._record_usage(sender_id)
 
-        # 直接返回 chain_result，包含一个“艾特全体”组件和一个“纯文本”组件
-        return event.chain_result([
-            At(qq="all"),  # 艾特全体成员
-            Plain(text_content) # 招募详情
-        ])
-
+        # 3. 使用 plain_result 发送，框架会将上面的 CQ 码原样交给 NapCat
+        return event.plain_result(text_content)
     def _is_rate_limited(self, user_id: str) -> tuple[bool, str]:
         now = time.time()
         if user_id in self.cooldown:
