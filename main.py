@@ -4,10 +4,10 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 @register(
     "astrbot_plugin_naraka_recruit",
-    "YourName",
+    "LK-von-Clausewitz",
     "永劫无间专属招募插件：@小劫宝 双排组队/三排组队/娱乐组队",
     "1.0.0",
-    "https://github.com/YourGitHubUsername/astrbot_plugin_naraka_recruit"
+    "https://github.com/LK-von-Clausewitz/astrbot_plugin_naraka_recruit"
 )
 class NarakaRecruitPlugin(Star):
     def __init__(self, context: Context):
