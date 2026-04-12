@@ -7,8 +7,8 @@ from astrbot.api import logger
 @register(
     "astrbot_plugin_naraka_recruit",
     "LK-von-Clausewitz",
-    "永劫无间组队插件：@机器人 + 关键词发布招募",
-    "1.0.2",
+    "永劫无间组队：通过检查文本中的机器人昵称触发",
+    "1.0.3",
     "https://github.com/LK-von-Clausewitz/astrbot_plugin_naraka_recruit"
 )
 class NarakaRecruitPlugin(Star):
@@ -18,34 +18,57 @@ class NarakaRecruitPlugin(Star):
         self.daily_count = defaultdict(lambda: defaultdict(int))
         self.cooldown_seconds = 30
         self.daily_limit = 3
+        # 机器人的昵称，用于手动判断
+        self.bot_nickname = "小劫宝"
 
-    # --- 核心逻辑：使用 @filter.at_me() 确保只有艾特机器人时才响应 ---
+    # --- 核心逻辑：不再使用 @filter.at_me ---
 
-    @filter.at_me()
     @filter.regex(r"双排组队")
     async def recruit_double(self, event: AstrMessageEvent):
-        return await self._handle_recruit(event, "双排")
+        if self._check_if_called(event):
+            return await self._handle_recruit(event, "双排")
 
-    @filter.at_me()
     @filter.regex(r"三排组队")
     async def recruit_triple(self, event: AstrMessageEvent):
-        return await self._handle_recruit(event, "三排")
+        if self._check_if_called(event):
+            return await self._handle_recruit(event, "三排")
 
-    @filter.at_me()
     @filter.regex(r"娱乐组队")
     async def recruit_casual(self, event: AstrMessageEvent):
-        return await self._handle_recruit(event, "娱乐")
+        if self._check_if_called(event):
+            return await self._handle_recruit(event, "娱乐")
+
+    def _check_if_called(self, event: AstrMessageEvent) -> bool:
+        """手动检查是否艾特了机器人或者提到了机器人名字"""
+        msg_str = event.message_str
+        # 1. 检查文字里是否有名字
+        if self.bot_nickname in msg_str:
+            return True
+        
+        # 2. 检查消息链里是否有 AT 节点 (兼容 Aiocqhttp 结构)
+        try:
+            # 获取当前机器人的 QQ 号
+            self_id = str(getattr(event.platform, "self_id", ""))
+            message_chain = event.message_obj.message
+            for seg in message_chain:
+                if seg.get("type") == "at":
+                    if str(seg.get("data", {}).get("qq")) == self_id:
+                        return True
+        except:
+            pass
+            
+        return False
 
     async def _handle_recruit(self, event: AstrMessageEvent, mode: str):
         sender_id = event.get_sender_id()
         sender_name = event.get_sender_name()
 
-        # 1. 频率限制检查
+        # 频率限制检查
         limited, msg = self._is_rate_limited(sender_id)
         if limited:
             return event.plain_result(f"❌ {msg}")
 
-        # 2. 构建消息链 (OneBot 格式)
+        # 构建发送的消息链
         at_all_segment = {
             "type": "at",
             "data": {"qq": "all"}
@@ -62,18 +85,15 @@ class NarakaRecruitPlugin(Star):
         }
         message_chain = [at_all_segment, text_segment]
 
-        # 3. 发送群消息
+        # 调用发送
         success = await self._send_group_message(event, message_chain)
-        
         if success:
             self._record_usage(sender_id)
-            return event.plain_result("✅ 小劫宝已帮你发布招募并@全体成员！")
+            return event.plain_result("✅ 招募已发布并@全体成员！")
         else:
-            # 如果失败，通常是因为没有管理员权限或 @全体成员 次数用完
-            return event.plain_result("❌ 发布失败，请确保机器人是管理员且有发送艾特全体的权限。")
+            return event.plain_result("❌ 发布失败，请检查管理权限或@全体次数。")
 
     async def _send_group_message(self, event: AstrMessageEvent, message_chain: list) -> bool:
-        """调用底层 API 发送群消息"""
         try:
             request_data = {
                 "action": "send_group_msg",
@@ -82,38 +102,27 @@ class NarakaRecruitPlugin(Star):
                     "message": message_chain
                 }
             }
-            # 通过 sapi 发送请求
             response = await event.platform.sapi.send_request(request_data)
-            if response and response.get('status') == 'ok':
-                return True
-            logger.error(f"发送群消息失败: {response}")
-            return False
+            return response and response.get('status') == 'ok'
         except Exception as e:
-            logger.error(f"调用发送消息API时发生异常: {e}")
+            logger.error(f"API调用异常: {e}")
             return False
 
     def _is_rate_limited(self, user_id: str) -> tuple[bool, str]:
-        """检查用户是否触发冷却或每日上限"""
         now = time.time()
-        # 冷却检查
         if user_id in self.cooldown:
             elapsed = now - self.cooldown[user_id]
             if elapsed < self.cooldown_seconds:
-                wait = int(self.cooldown_seconds - elapsed)
-                return True, f"操作过于频繁，请等待 {wait} 秒后再试。"
+                return True, f"太快了，请等待 {int(self.cooldown_seconds - elapsed)} 秒。"
         
-        # 每日上限检查
         today = time.strftime("%Y-%m-%d")
         if self.daily_count[user_id][today] >= self.daily_limit:
-            return True, f"您今天已经使用了 {self.daily_limit} 次招募机会，请明天再来。"
-        
+            return True, f"今天 {self.daily_limit} 次机会已用完。"
         return False, ""
 
     def _record_usage(self, user_id: str):
-        """记录用户使用时间和次数"""
         self.cooldown[user_id] = time.time()
-        today = time.strftime("%Y-%m-%d")
-        self.daily_count[user_id][today] += 1
+        self.daily_count[user_id][time.strftime("%Y-%m-%d")] += 1
 
     async def terminate(self):
-        logger.info("永劫无间招募插件已安全卸载。")
+        logger.info("永劫无间招募插件已卸载。")
