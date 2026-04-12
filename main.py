@@ -2,7 +2,8 @@ import time
 from collections import defaultdict
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger@register(
+from astrbot.api import logger
+@register(
     "astrbot_plugin_naraka_recruit",
     "LK-von-Clausewitz",
     "永劫无间小劫宝专属：@小劫宝 双排/三排/娱乐组队",
