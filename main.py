@@ -3,12 +3,14 @@ from collections import defaultdict
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+# 导入 AstrBot 标准消息组件
+from astrbot.api.message_components import At, Plain
 
 @register(
     "astrbot_plugin_naraka_recruit",
     "LK-von-Clausewitz",
-    "永劫无间组队：修复 API 调用路径",
-    "1.0.4",
+    "永劫无间组队：使用标准消息链修复",
+    "1.0.5",
     "https://github.com/LK-von-Clausewitz/astrbot_plugin_naraka_recruit"
 )
 class NarakaRecruitPlugin(Star):
@@ -36,16 +38,14 @@ class NarakaRecruitPlugin(Star):
             return await self._handle_recruit(event, "娱乐")
 
     def _check_if_called(self, event: AstrMessageEvent) -> bool:
-        """检查消息中是否包含机器人昵称或是否被艾特"""
+        """手动检查是否提到了机器人"""
         msg_str = event.message_str
         if self.bot_nickname in msg_str:
             return True
-        
-        # 兼容性检查：如果 message_obj 有 at 信息
+        # 检查是否有艾特
         try:
             for seg in event.message_obj.message:
                 if seg.get("type") == "at":
-                    # 只要有 at 节点就视为在叫机器人 (在大多数单机器人环境下适用)
                     return True
         except:
             pass
@@ -55,54 +55,28 @@ class NarakaRecruitPlugin(Star):
         sender_id = event.get_sender_id()
         sender_name = event.get_sender_name()
 
+        # 1. 频率限制检查
         limited, msg = self._is_rate_limited(sender_id)
         if limited:
             return event.plain_result(f"❌ {msg}")
 
-        # 构造 OneBot 消息链
-        message_chain = [
-            {"type": "at", "data": {"qq": "all"}},
-            {"type": "text", "data": {"text": f"\n🔥【永劫无间 {mode} 招募】🔥\n发起人：{sender_name} ({sender_id})\n模式：{mode}\n\n大家快上车呀！直接联系发起人即可！"}}
-        ]
+        # 2. 构造并返回消息链
+        # 这是 AstrBot 的标准做法，不需要手动调用底层 API
+        text_content = (
+            f"\n🔥【永劫无间 {mode} 招募】🔥\n"
+            f"发起人：{sender_name} ({sender_id})\n"
+            f"模式：{mode}\n\n"
+            f"大家快上车呀！感兴趣的直接联系发起人！"
+        )
 
-        # 核心修复点：调用 _send_group_message
-        success = await self._send_group_message(event, message_chain)
-        
-        if success:
-            self._record_usage(sender_id)
-            return event.plain_result("✅ 小劫宝已帮你发布招募并@全体成员！")
-        else:
-            return event.plain_result("❌ 发布失败。请确保我是管理员，且群内@全体成员次数未达今日上限。")
+        # 记录使用次数
+        self._record_usage(sender_id)
 
-    async def _send_group_message(self, event: AstrMessageEvent, message_chain: list) -> bool:
-        """修复后的 API 调用方法"""
-        try:
-            # 获取群号
-            group_id = getattr(event.message_obj, "group_id", None)
-            if not group_id:
-                logger.error("无法获取 group_id")
-                return False
-
-            request_data = {
-                "action": "send_group_msg",
-                "params": {
-                    "group_id": group_id,
-                    "message": message_chain
-                }
-            }
-
-            # --- 关键修复：在 AstrBot v4 中，sapi 通常在 event.bot 下 ---
-            bot = getattr(event, "bot", None) or getattr(event, "platform_instance", None)
-            
-            if bot and hasattr(bot, "sapi"):
-                response = await bot.sapi.send_request(request_data)
-                return response and response.get('status') == 'ok'
-            
-            logger.error("无法定位到 sapi 接口，请检查适配器连接。")
-            return False
-        except Exception as e:
-            logger.error(f"API调用发生异常: {e}")
-            return False
+        # 直接返回 chain_result，包含一个“艾特全体”组件和一个“纯文本”组件
+        return event.chain_result([
+            At(qq="all"),  # 艾特全体成员
+            Plain(text_content) # 招募详情
+        ])
 
     def _is_rate_limited(self, user_id: str) -> tuple[bool, str]:
         now = time.time()
