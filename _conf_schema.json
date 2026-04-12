@@ -1,18 +1,1 @@
-{
-  "type": "object",
-  "properties": {
-    "cooldown_seconds": {
-      "type": "integer",
-      "title": "冷却时间(秒)",
-      "default": 30,
-      "description": "同一用户两次招募的最小间隔（秒）"
-    },
-    "daily_limit": {
-      "type": "integer",
-      "title": "每日限制次数",
-      "default": 3,
-      "description": "每个用户每天最大招募次数"
-    }
-  },
-  "required": []
-}
+
