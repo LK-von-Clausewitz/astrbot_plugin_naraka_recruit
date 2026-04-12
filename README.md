@@ -14,7 +14,7 @@
 
 1. 在 AstrBot 管理面板中，进入「插件」页面。
 2. 选择「通过 GitHub 安装」，输入本仓库地址：
-   `https://github.com/你的用户名/astrbot_plugin_naraka_recruit`
+   `https://github.com/LK-von-Clausewitz/astrbot_plugin_naraka_recruit`
 3. 安装完成后重启 AstrBot 即可。
 
 ## 🛠 使用说明
