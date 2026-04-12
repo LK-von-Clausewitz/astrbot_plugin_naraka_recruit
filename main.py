@@ -1,16 +1,15 @@
 import time
-import re
 from collections import defaultdict
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger@register(
+from astrbot.api import logger
+@register(
     "astrbot_plugin_naraka_recruit",
-    "YLK-von-Clausewitz",
-    "永劫无间组队招募插件：@小劫宝 双排组队/三排组队/娱乐组队",
+    "LK-von-Clausewitz",
+    "永劫无间专属招募插件：@小劫宝 双排组队/三排组队/娱乐组队",
     "1.0.0",
     "https://github.com/LK-von-Clausewitz/astrbot_plugin_naraka_recruit"
 )
- 
 class NarakaRecruitPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -18,6 +17,7 @@ class NarakaRecruitPlugin(Star):
         self.daily_count = defaultdict(lambda: defaultdict(int))
         self.cooldown_seconds = 30
         self.daily_limit = 3
+        logger.info("永劫无间招募插件已加载！")
 
     async def _send_group_message(self, event: AstrMessageEvent, message_chain: list) -> bool:
         try:
@@ -54,58 +54,58 @@ class NarakaRecruitPlugin(Star):
         today = time.strftime("%Y-%m-%d")
         self.daily_count[user_id][today] += 1
 
-    @filter.on_message()
-    async def on_message(self, event: AstrMessageEvent):
-        try:
-            message_str = event.message_str.strip()
-            
-            # 检测是否是招募指令
-            mode = None
-            if "双排组队" in message_str:
-                mode = "双排"
-            elif "三排组队" in message_str:
-                mode = "三排"
-            elif "娱乐组队" in message_str:
-                mode = "娱乐"
-            
-            if not mode:
-                return
-            
-            # 检查是否@了机器人（简单检查，可根据实际情况调整）
-            if not event.message_obj.is_tome:
-                return
-            
-            sender_id = event.get_sender_id()
-            sender_name = event.get_sender_name()
-            
-            limited, msg = self._is_rate_limited(sender_id)
-            if limited:
-                yield event.plain_result(f"❌ {msg}")
-                return
-            
-            # 构造招募消息
-            at_all_segment = {"type": "at", "data": {"qq": "all"}}
-            text_content = (
-                f"【永劫无间 {mode} 招募】\n"
-                f"🏮 发起人：{sender_name}\n"
-                f"🎮 模式：{mode}\n"
-                f"📢 状态：正在等待队友加入！\n\n"
-                f"感兴趣的兄弟速来！直接联系发起人～"
-            )
-            text_segment = {"type": "text", "data": {"text": text_content}}
-            message_chain = [at_all_segment, text_segment]
-            
-            success = await self._send_group_message(event, message_chain)
-            if success:
-                self._record_usage(sender_id)
-                yield event.plain_result(f"✅ {mode}招募信息已发布！@全体成员")
-            else:
-                yield event.plain_result("❌ 发布失败，请确保机器人是群管理员且@全体成员次数未达上限。")
-                
-        except Exception as e:
-            logger.error(f"处理消息时出错: {e}")
-            import traceback
-            traceback.print_exc()
+    @filter.command("双排组队")
+    async def recruit_double(self, event: AstrMessageEvent):
+        await self._handle_recruit(event, "双排")
+
+    @filter.command("三排组队")
+    async def recruit_triple(self, event: AstrMessageEvent):
+        await self._handle_recruit(event, "三排")
+
+    @filter.command("娱乐组队")
+    async def recruit_casual(self, event: AstrMessageEvent):
+        await self._handle_recruit(event, "娱乐")
+
+    async def _handle_recruit(self, event: AstrMessageEvent, mode: str):
+        sender_id = event.get_sender_id()
+        sender_name = event.get_sender_name()
+
+        limited, msg = self._is_rate_limited(sender_id)
+        if limited:
+            yield event.plain_result(f"❌ {msg}")
+            return
+
+        mode_names = {
+            "双排": "双排（天人/排位/匹配）",
+            "三排": "三排（天人/排位/匹配）",
+            "娱乐": "娱乐模式（无尽/征神/其他）"
+        }
+
+        at_all_segment = {
+            "type": "at",
+            "data": {"qq": "all"}
+        }
+        text_content = (
+            f"🔥【永劫无间招募】🔥\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🎮 模式：{mode_names[mode]}\n"
+            f"👤 发起人：{sender_name}\n"
+            f"📢 状态：在线等，火速来！\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"有意者直接在群内回复或私聊发起人！"
+        )
+        text_segment = {
+            "type": "text",
+            "data": {"text": text_content}
+        }
+        message_chain = [at_all_segment, text_segment]
+
+        success = await self._send_group_message(event, message_chain)
+        if success:
+            self._record_usage(sender_id)
+            yield event.plain_result("✅ 招募信息已发布！")
+        else:
+            yield event.plain_result("❌ 发布失败，请确保机器人是群管理员且@全体成员次数未达上限。")
 
     async def terminate(self):
         logger.info("永劫无间招募插件已卸载。")
