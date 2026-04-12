@@ -6,10 +6,10 @@ from astrbot.api import logger
 
 @register(
     "astrbot_plugin_naraka_recruit",
-    "YourName",
+    "LK-von-Clausewitz",
     "永劫无间招募插件：限定双排/三排/娱乐模式，普通成员可请求机器人@全体成员",
     "1.0.0",
-    "https://github.com/YourGitHubUsername/astrbot_plugin_naraka_recruit"
+    "https://github.com/LK-von-Clausewitz/astrbot_plugin_naraka_recruit"
 )
 class NarakaRecruitPlugin(Star):
     def __init__(self, context: Context):
